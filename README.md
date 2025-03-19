@@ -12,12 +12,25 @@ pip install -r requirements.txt
 
 ## Usage
 
+### Setup
 ```python
 chmod +x app.py
 ```
 
 ```python
 ./app.py
+```
+
+The blockchain and the blockchain API interface is now up and running.
+
+### Control
+Use, for instance, curl to call the API.
+
+```bash
+curl -H 'Content-Type: application/json' \                                                         ─╯
+      -d '{}' \
+      -X GET \
+      http://127.0.0.1:5000/get_chain
 ```
 
 ## Contributing
