@@ -1,3 +1,4 @@
 flask>=3.1.0
 flask-openapi3>=4.1.0
 flask-openapi3-swagger
+pymongo>=4.11.3

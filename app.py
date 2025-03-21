@@ -11,6 +11,21 @@ from pydantic import BaseModel, Field, ValidationError
 from flask_openapi3 import Info, Tag
 from flask_openapi3 import OpenAPI, APIBlueprint
 
+from pymongo import MongoClient
+from bson import ObjectId
+
+# DB
+client = MongoClient \
+(
+    host="test_mongodb",
+    port=27017,
+    username="root",
+    password="pass",
+    authSource="admin"
+)
+db = client.mytododb
+tasks_collection = db.tasks
+
 # Responses
 class ValidationErrorModel(BaseModel):
     code: int = Field(401, description="Status Code")
@@ -56,8 +71,6 @@ class ValidateResponse(BaseModel):
     message: str = Field("ok", description="Validation of block")
     content: str = Field("application/json")
 
-
-
 # Callbacks
 def validation_error_callback(e: ValidationError) -> FlaskResponse:
     validation_error_object = ValidationErrorModel(code="400", message=e.json())
@@ -66,8 +79,8 @@ def validation_error_callback(e: ValidationError) -> FlaskResponse:
     response.status_code = getattr(current_app, "validation_error_status", 422)
     return response
 
-#app = Flask(__name__)
-#app = OpenAPI(__name__, info=info)
+blocker = Blocker()
+
 app  = OpenAPI(
     "Blocker API",
     validation_error_status=400,
@@ -77,16 +90,20 @@ app  = OpenAPI(
 
 blocker_tag = Tag(name="Blockchain", description="Basic blockchain management")
 operations_tag = Tag(name="Operations", description="Operations and status information")
+api_version = "v1"
+
+
 
 @app.post \
 (
-    "/mine",
+    f"/{api_version}/mine",
     methods=["POST"],
     responses=\
     {
         200: BlockedMinedResponse,
         400: ValidationErrorModel
     },
+    summary="Mine a new block and add to the blockchain", 
     tags=[blocker_tag],
     doc_ui=True
 )
@@ -96,14 +113,6 @@ def mine_block():
     proof = blocker.proof_of_work(previous_proof)
     previous_hash = blocker.hash(previous_block)
     block = blocker.create_block(proof, previous_hash)
-
-    #response = BlockedMinedResponse(
-    #    message = "A block is mined",
-    #    index = block["index"],
-    #    timestamp = block["timestamp"],
-    #    proof = block["proof"],
-    #    previous_hash = block["previous_hash"]
-    #)
 
     response = {
         "message": "A block is MINED",
@@ -119,7 +128,7 @@ def mine_block():
 
 @app.get \
 (
-    "/get_chain",
+    f"/{api_version}/get_chain",
     methods=["GET"],
     responses=\
     {
@@ -139,19 +148,21 @@ def display_chain():
     return jsonify(response), 200
 
 
+
 @app.get \
 (
-    "/validate",
+    f"/{api_version}/validate",
     methods=["GET"],
     responses=
     {
         200: ValidateResponse,
         403: ServiceUnavailable
     }, 
+    summary="Validate the blockchain", 
     tags=[blocker_tag],
     doc_ui=True
 )
-def validate():
+def validate_blockchain():
     valid = blocker.chain_valid(blocker.chain)
 
     if valid:
@@ -160,14 +171,17 @@ def validate():
         response = {"message": "The Blockchain is not valid."}
     return jsonify(response), 200
 
+
+
 @app.get \
 (
-    "/",
+    "/health",
     methods=["GET"],
     responses=
     {
         200: {"content": {"application/json": {"schema": {"type": "string"}}}}
     },
+    summary="Check if the API is online", 
     tags=[operations_tag],
     doc_ui=True
 )
@@ -175,45 +189,7 @@ def status():
     response = {"status": "ok"}
     return jsonify(response), 200
 
-blocker = Blocker()
-info = Info(title="Blocker - Blockchain API", version="1.0.0")
 
-jwt = \
-{
-    "type": "http",
-    "scheme": "bearer",
-    "bearerFormat": "JWT"
-}
-
-tag = Tag \
-(
-    name="Blocker ", 
-    description="Blocker a naive implementation of blockchain"
-)
-
-security_schemes = \
-{
-    "jwt": jwt
-}
-
-security = [
-    {"jwt": []},
-    {"oauth2": ["write:das", "read:das"]}
-]
-
-api = APIBlueprint \
-(
-    "/blocker",
-    __name__,
-    url_prefix="/api",
-    abp_tags=[tag],
-    abp_security=security,
-    abp_responses={"401": Unauthorized},
-    doc_ui=True
-)
-
-# Register API
-app.register_api(api)
 
 if __name__ == "__main__":
     app.run(
