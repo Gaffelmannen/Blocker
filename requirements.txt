@@ -1,4 +1,9 @@
 flask>=3.1.0
 flask-openapi3>=4.1.0
 flask-openapi3-swagger
+flask-openapi3-redoc
+flask-openapi3-rapidoc
+flask-openapi3-rapipdf
+flask-openapi3-scalar
+flask-openapi3-elements
 pymongo>=4.11.3

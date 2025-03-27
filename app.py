@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from blocker import Blocker
+from blocker.blocker import Blocker
 
-from flask import Flask, jsonify
+import json
+
+from flask import Flask, jsonify, request
 from flask.wrappers import Response as FlaskResponse
 
 from typing import Optional, List
@@ -12,19 +14,19 @@ from flask_openapi3 import Info, Tag
 from flask_openapi3 import OpenAPI, APIBlueprint
 
 from pymongo import MongoClient
-from bson import ObjectId
+from bson import ObjectId, json_util
 
 # DB
 client = MongoClient \
 (
-    host="test_mongodb",
+    host="blocker_mongodb",
     port=27017,
     username="root",
     password="pass",
     authSource="admin"
 )
-db = client.mytododb
-tasks_collection = db.tasks
+db = client.blocker_db
+blocker_collection = db.blockchain
 
 # Responses
 class ValidationErrorModel(BaseModel):
@@ -65,7 +67,6 @@ class GetChainResponse(BaseModel):
     message: str = Field("ok", description="Chain validation")
     data: Optional[MineBlock]
 
-# 200: {"content": {"application/json": {"schema": {"type": "string"}}}},
 class ValidateResponse(BaseModel):
     code: int = Field("200", description="Status Code")
     message: str = Field("ok", description="Validation of block")
@@ -79,6 +80,12 @@ def validation_error_callback(e: ValidationError) -> FlaskResponse:
     response.status_code = getattr(current_app, "validation_error_status", 422)
     return response
 
+# Misc
+def parse_json(data):
+    return json.loads(json_util.dumps(data))
+
+
+# Setup
 blocker = Blocker()
 
 app  = OpenAPI(
@@ -90,12 +97,12 @@ app  = OpenAPI(
 
 blocker_tag = Tag(name="Blockchain", description="Basic blockchain management")
 operations_tag = Tag(name="Operations", description="Operations and status information")
+database_tag = Tag(name="Database", description="Database CRUD operations")
 api_version = "v1"
 
 
-
-@app.post \
-(
+# Endpoints
+@app.post (
     f"/{api_version}/mine",
     methods=["POST"],
     responses=\
@@ -126,8 +133,7 @@ def mine_block():
 
 
 
-@app.get \
-(
+@app.get (
     f"/{api_version}/get_chain",
     methods=["GET"],
     responses=\
@@ -149,8 +155,7 @@ def display_chain():
 
 
 
-@app.get \
-(
+@app.get (
     f"/{api_version}/validate",
     methods=["GET"],
     responses=
@@ -173,8 +178,7 @@ def validate_blockchain():
 
 
 
-@app.get \
-(
+@app.get (
     "/health",
     methods=["GET"],
     responses=
@@ -189,6 +193,65 @@ def status():
     response = {"status": "ok"}
     return jsonify(response), 200
 
+@app.post (
+    "/insert",
+    methods=["POST"],
+    responses=
+    {
+        200: {"content": {"application/json": {"schema": {"type": "string"}}}}
+    },
+    tags=[database_tag]
+)
+def create():
+    item_name = request.json["name"]
+    blocker_collection.insert_one({"name": item_name})
+    response = {"status": "ok"}
+    return jsonify(response), 200
+
+@app.get(
+    "/read",
+    methods=["GET"],
+    responses=
+    {
+        200: {"content": {"application/json": {"schema": {"type": "string"}}}}
+    },
+    tags=[database_tag]
+)
+def readall():
+    items = []
+    for item in blocker_collection.find():
+        items.append(item)
+    return parse_json(items), 200
+
+@app.get(
+    "/read/<string:blocker_id>",
+    methods=["GET"],
+    responses=
+    {
+        200: {"content": {"application/json": {"schema": {"type": "string"}}}}
+    },
+    tags=[database_tag]
+)
+def readone():
+    items = []
+    for item in blocker_collection.find():
+        items.append(item)
+    return parse_json(items), 200
+
+@app.get(
+    "/delete/<string:blocker_id>",
+    methods=["GET"],
+    responses=
+    {
+        200: {"content": {"application/json": {"schema": {"type": "string"}}}},
+        404: {"content": {"application/json": {"schema": {"type": "string"}}}}
+    },
+    tags=[database_tag]
+)
+def delete(blocker_id):
+    blocker_collection.delete_one({'_id': ObjectId(blocker_id)})
+    response = {"status": "ok"}
+    return response, 200
 
 
 if __name__ == "__main__":
